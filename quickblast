@@ -1,0 +1,56 @@
+#!/bin/bash
+
+set -e
+
+usage() { 
+	echo "Welcome to quickblast. This script helps to quickly create blast databases and search sequences against it using Docker containers."
+	echo
+	echo "Usage: $0 [-v] [-d <database file (FASTA)>] [-q <query file (FASTA)>]" 
+	echo
+	echo "Options:"
+	echo "     -d FASTA sequence file which should be used as database."
+	echo "     -q FASTA sequence file which should be used as query. "
+	echo "     -t Database type. Possible values: nucl or prot. Default: nucl"
+	echo
+	1>&2; exit 1; }
+
+version() {
+	echo "$0 v0.1"
+	exit 0
+}
+
+DBTYPE="nucl"
+while getopts ":v:d:q:t:" option;
+	do
+		case "${option}"
+		in
+			v) version;;
+			d) DATABASE=${OPTARG};;
+			q) QUERY=${OPTARG};;
+			t) DBTYPE=${OPTARG};;
+			*) echo "Illegal option --$OPTARG\n" >&2; usage;;
+			?) echo "Illegal option --$OPTARG\n" >&2 usage;;
+		esac
+	done
+if [ $OPTIND -eq 1 ]; then usage; fi
+
+echo "Specified options:"
+echo "Database: "$DATABASE
+echo "Database type: "$DBTYPE
+echo "Query: "$QUERY
+echo
+
+echo "Creating BLAST database from: "$DATABASE
+
+docker run --rm -it -v $(pwd):/data reslp/ncbi-blast:2.9.0 makeblastdb -in /data/$DATABASE -dbtype $DBTYPE -hash_index -out /data/$DATABASE"_db"
+
+echo
+echo "Searching sequences against database:"
+
+if [[ $DBTYPE == "nucl" ]]; then
+	echo "Using blastn. Your blast results are:"
+	docker run --rm -it -v $(pwd):/data reslp/ncbi-blast:2.9.0 blastn -db /data/$DATABASE"_db" -query /data/$QUERY -outfmt 6
+else
+	echo "Using blastp. Your blast results are:"
+	docker run --rm -it -v $(pwd):/data reslp/ncbi-blast:2.9.0 blastp -db /data/$DATABASE"_db" -query /data/$QUERY -outfmt 6
+fi	
